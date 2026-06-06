@@ -36,7 +36,7 @@ export function useMediaPipe(videoRef, canvasRef) {
 
     const init = async () => {
       const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm"
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm"
       );
 
       poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
@@ -46,9 +46,6 @@ export function useMediaPipe(videoRef, canvasRef) {
         },
         runningMode: "VIDEO",
         numPoses: 1,
-        minPoseDetectionConfidence: 0.5,
-        minPosePresenceConfidence:  0.3,
-        minTrackingConfidence:      0.3,
       });
 
       detect();
