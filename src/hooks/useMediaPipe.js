@@ -46,6 +46,9 @@ export function useMediaPipe(videoRef, canvasRef) {
         },
         runningMode: "VIDEO",
         numPoses: 1,
+        minPoseDetectionConfidence: 0.5,
+        minPosePresenceConfidence:  0.3,
+        minTrackingConfidence:      0.3,
       });
 
       detect();
