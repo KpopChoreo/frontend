@@ -14,10 +14,8 @@ function WebcamCapture({ song, onFinish }) {
   const frameIdxRef = useRef(0);
   const isAnalyzingRef = useRef(false);
 
-  // ── [추가] 녹화 관련 ref ────────────────────────────────────
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
-  // ─────────────────────────────────────────────────────────────
 
   const [phase, setPhase] = useState("idle");
   const [countdown, setCountdown] = useState(null);
@@ -145,19 +143,16 @@ function WebcamCapture({ song, onFinish }) {
 
     mediaRecorder.onstop = () => {
       const videoBlob = new Blob(recordedChunksRef.current, { type: "video/webm" });
-      console.log("녹화 파일 크기:", videoBlob.size, "bytes");
       runDtwAnalysis(videoBlob);
     };
 
-    mediaRecorder.start(1000); // 1초마다 데이터 수집
-    console.log("녹화 시작");
+    mediaRecorder.start(1000);
   }, [runDtwAnalysis]);
 
   // ── 6. 녹화 종료 ────────────────────────────────────────────
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
-      console.log("녹화 종료");
     }
   }, []);
 
@@ -176,14 +171,14 @@ function WebcamCapture({ song, onFinish }) {
           vid.currentTime = 0;
           vid.play().catch((e) => console.error("영상 재생 실패:", e));
         }
-        startRecording(); // ── [추가] 연습 시작과 동시에 녹화 시작
+        startRecording();
       } else {
         setCountdown(count);
       }
     }, 1000);
   }, [startRecording]);
 
-  // ── 8. 시작 버튼 → WebSocket 연결 완료 후 카운트다운 ─────────
+  // ── 8. 시작 버튼 ────────────────────────────────────────────
   const handleStart = () => {
     frameIdxRef.current = 0;
     windowBufferRef.current = [];
@@ -226,17 +221,15 @@ function WebcamCapture({ song, onFinish }) {
     };
   }, []);
 
-  // ── 9. 영상 종료 → 자동 DTW ──────────────────────────────────
+  // ── 9. 영상 종료 → 자동 DTW ─────────────────────────────────
   const handleVideoEnded = useCallback(() => {
-    if (phase === "practicing") {
-      stopRecording(); // 녹화 종료 → onstop에서 자동으로 DTW 실행
-    }
+    if (phase === "practicing") stopRecording();
   }, [phase, stopRecording]);
 
   // ── 10. 수동 종료 ────────────────────────────────────────────
   const handleManualStop = () => {
     referenceVideoRef.current?.pause();
-    stopRecording(); // 녹화 종료 → onstop에서 자동으로 DTW 실행
+    stopRecording();
   };
 
   // ── 헬퍼 ────────────────────────────────────────────────────
@@ -410,6 +403,22 @@ function WebcamCapture({ song, onFinish }) {
                 <p style={{ color: "white", fontSize: "14px", fontWeight: "600" }}>⏳ 연결 중...</p>
               </div>
             )}
+
+            {/* ── [추가] 분석 중 웹캠 오버레이 ────────────────────── */}
+            {phase === "analyzing" && (
+              <div style={{
+                position: "absolute", inset: 0,
+                background: "rgba(0,0,0,0.85)",
+                display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center", gap: "16px",
+              }}>
+                <span style={{ fontSize: "48px" }}>🔄</span>
+                <p style={{ color: "white", fontSize: "16px", fontWeight: "700", margin: 0 }}>
+                  분석 중...
+                </p>
+              </div>
+            )}
+            {/* ─────────────────────────────────────────────────── */}
 
             {phase === "idle" && (
               <div style={{
