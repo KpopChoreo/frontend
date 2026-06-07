@@ -3,7 +3,7 @@ import { useMediaPipe } from "../hooks/useMediaPipe";
 
 const BASE_URL = "http://localhost:8000";
 const WS_URL = "ws://localhost:8000";
-const WINDOW_SIZE = 5; // ── [수정] 15 → 5로 줄여서 첫 점수 빠르게 표시
+const WINDOW_SIZE = 5;
 
 function WebcamCapture({ song, onFinish }) {
   const videoRef = useRef(null);
@@ -12,10 +12,13 @@ function WebcamCapture({ song, onFinish }) {
   const wsRef = useRef(null);
   const windowBufferRef = useRef([]);
   const frameIdxRef = useRef(0);
-  const allFramesRef = useRef([]);
   const isAnalyzingRef = useRef(false);
 
-  // "idle" | "countdown" | "practicing" | "analyzing"
+  // ── [추가] 녹화 관련 ref ────────────────────────────────────
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+  // ─────────────────────────────────────────────────────────────
+
   const [phase, setPhase] = useState("idle");
   const [countdown, setCountdown] = useState(null);
   const [error, setError] = useState(null);
@@ -55,11 +58,9 @@ function WebcamCapture({ song, onFinish }) {
       })),
     };
 
-    allFramesRef.current.push(frame);
     frameIdxRef.current++;
-    console.log("프레임 수집:", frameIdxRef.current);
     if (frameIdxRef.current % 30 === 0) {
-      setFrameCount(allFramesRef.current.length);
+      setFrameCount(frameIdxRef.current);
     }
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -90,27 +91,17 @@ function WebcamCapture({ song, onFinish }) {
     return () => videoRef.current?.srcObject?.getTracks().forEach((t) => t.stop());
   }, []);
 
-  // ── 4. DTW 분석 ─────────────────────────────────────────────
-  const runDtwAnalysis = useCallback(async () => {
+  // ── 4. DTW 분석 (영상 파일 전송) ────────────────────────────
+  const runDtwAnalysis = useCallback(async (videoBlob) => {
     if (isAnalyzingRef.current) return;
     isAnalyzingRef.current = true;
     setPhase("analyzing");
     setError(null);
 
-    const frames = allFramesRef.current;
-    if (frames.length === 0) {
-      setError("수집된 동작 데이터가 없습니다.");
-      setPhase("idle");
-      isAnalyzingRef.current = false;
-      return;
-    }
-
     try {
-      const jsonBlob = new Blob([JSON.stringify({ frames, fps: song.fps })], { type: "application/json" });
       const formData = new FormData();
       formData.append("dance_id", song.dance_id);
-      formData.append("user_json", jsonBlob, "user_pose.json");
-      formData.append("distance_metric", "weighted_l2");
+      formData.append("user_video", videoBlob, "user_video.webm");
       formData.append("top_n", "3");
 
       const res = await fetch(`${BASE_URL}/api/v1/dtw/analyze`, {
@@ -134,7 +125,43 @@ function WebcamCapture({ song, onFinish }) {
     }
   }, [song, onFinish]);
 
-  // ── 5. 카운트다운 함수 ───────────────────────────────────────
+  // ── 5. 녹화 시작 ────────────────────────────────────────────
+  const startRecording = useCallback(() => {
+    const stream = videoRef.current?.srcObject;
+    if (!stream) return;
+
+    recordedChunksRef.current = [];
+
+    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ? "video/webm;codecs=vp9"
+      : "video/webm";
+
+    const mediaRecorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorderRef.current = mediaRecorder;
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      const videoBlob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+      console.log("녹화 파일 크기:", videoBlob.size, "bytes");
+      runDtwAnalysis(videoBlob);
+    };
+
+    mediaRecorder.start(1000); // 1초마다 데이터 수집
+    console.log("녹화 시작");
+  }, [runDtwAnalysis]);
+
+  // ── 6. 녹화 종료 ────────────────────────────────────────────
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+      console.log("녹화 종료");
+    }
+  }, []);
+
+  // ── 7. 카운트다운 함수 ───────────────────────────────────────
   const startCountdown = useCallback(() => {
     setCountdown(3);
     let count = 3;
@@ -149,17 +176,18 @@ function WebcamCapture({ song, onFinish }) {
           vid.currentTime = 0;
           vid.play().catch((e) => console.error("영상 재생 실패:", e));
         }
+        startRecording(); // ── [추가] 연습 시작과 동시에 녹화 시작
       } else {
         setCountdown(count);
       }
     }, 1000);
-  }, []);
+  }, [startRecording]);
 
-  // ── 6. 시작 버튼 → WebSocket 연결 완료 후 카운트다운 ─────────
+  // ── 8. 시작 버튼 → WebSocket 연결 완료 후 카운트다운 ─────────
   const handleStart = () => {
-    allFramesRef.current = [];
     frameIdxRef.current = 0;
     windowBufferRef.current = [];
+    recordedChunksRef.current = [];
     setFrameCount(0);
     setScore(null);
     setParts(null);
@@ -167,7 +195,6 @@ function WebcamCapture({ song, onFinish }) {
     setError(null);
     setPhase("countdown");
 
-    // WebSocket 먼저 연결 → 연결 완료(onopen) 후 카운트다운 시작
     const ws = new WebSocket(`${WS_URL}/ws/similarity/${song.dance_id}`);
     wsRef.current = ws;
 
@@ -193,19 +220,23 @@ function WebcamCapture({ song, onFinish }) {
     return () => {
       wsRef.current?.close();
       partsRef.current = null;
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
     };
   }, []);
-  // ─────────────────────────────────────────────────────────────
 
-  // ── 7. 영상 종료 → 자동 DTW ─────────────────────────────────
+  // ── 9. 영상 종료 → 자동 DTW ──────────────────────────────────
   const handleVideoEnded = useCallback(() => {
-    if (phase === "practicing") runDtwAnalysis();
-  }, [phase, runDtwAnalysis]);
+    if (phase === "practicing") {
+      stopRecording(); // 녹화 종료 → onstop에서 자동으로 DTW 실행
+    }
+  }, [phase, stopRecording]);
 
-  // ── 8. 수동 종료 ────────────────────────────────────────────
+  // ── 10. 수동 종료 ────────────────────────────────────────────
   const handleManualStop = () => {
     referenceVideoRef.current?.pause();
-    runDtwAnalysis();
+    stopRecording(); // 녹화 종료 → onstop에서 자동으로 DTW 실행
   };
 
   // ── 헬퍼 ────────────────────────────────────────────────────
@@ -263,10 +294,10 @@ function WebcamCapture({ song, onFinish }) {
           borderRadius: "12px", border: "1px solid #e9d5ff",
         }}>
           <p style={{ fontSize: "18px", fontWeight: "bold", color: "#7c3aed", margin: "0 0 4px" }}>
-            🔄 DTW 분석 중...
+            🔄 종합 분석 중...
           </p>
           <p style={{ color: "#a855f7", fontSize: "13px", margin: 0 }}>
-            수집된 {frameCount}개 프레임을 분석하고 있습니다
+            영상을 분석하고 있습니다. 잠시만 기다려주세요 (최대 120초)
           </p>
         </div>
       )}
@@ -310,6 +341,9 @@ function WebcamCapture({ song, onFinish }) {
             🎥 내 동작
             {phase === "idle" && (
               <span style={{ color: "#22c55e", marginLeft: "8px", fontSize: "11px" }}>● 웹캠 대기 중</span>
+            )}
+            {phase === "practicing" && (
+              <span style={{ color: "#ef4444", marginLeft: "8px", fontSize: "11px" }}>● 녹화 중</span>
             )}
           </p>
           <div style={{
