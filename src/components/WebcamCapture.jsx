@@ -110,7 +110,7 @@ function WebcamCapture({ song, onFinish }) {
       const formData = new FormData();
       formData.append("dance_id", song.dance_id);
       formData.append("user_json", jsonBlob, "user_pose.json");
-      formData.append("distance_metric", "l2");
+      formData.append("distance_metric", "weighted_l2");
       formData.append("top_n", "3");
 
       const res = await fetch(`${BASE_URL}/api/v1/dtw/analyze`, {
