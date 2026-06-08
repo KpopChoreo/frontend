@@ -17,11 +17,8 @@ function WebcamCapture({ song, onFinish }) {
 
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
-<<<<<<< HEAD
   const recordStartTimeRef = useRef(0); // 녹화 시작 시간 기록용
   // ─────────────────────────────────────────────────────────────
-=======
->>>>>>> 78f09c2dca75899098c4282b914ff25542b578c3
 
   const [phase, setPhase] = useState("idle");
   const [countdown, setCountdown] = useState(null);
@@ -240,23 +237,15 @@ function WebcamCapture({ song, onFinish }) {
 
   // ── 9. 영상 종료 → 자동 DTW ─────────────────────────────────
   const handleVideoEnded = useCallback(() => {
-<<<<<<< HEAD
     if (phase === "practicing") {
       stopRecording(); 
     }
-=======
-    if (phase === "practicing") stopRecording();
->>>>>>> 78f09c2dca75899098c4282b914ff25542b578c3
   }, [phase, stopRecording]);
 
   // ── 10. 수동 종료 ────────────────────────────────────────────
   const handleManualStop = () => {
     referenceVideoRef.current?.pause();
-<<<<<<< HEAD
     stopRecording(); 
-=======
-    stopRecording();
->>>>>>> 78f09c2dca75899098c4282b914ff25542b578c3
   };
 
   // ── 헬퍼 ────────────────────────────────────────────────────
