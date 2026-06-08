@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { useMediaPipe } from "../hooks/useMediaPipe";
+import fixWebmDuration from "fix-webm-duration";
 
 const BASE_URL = "http://localhost:8000";
 const WS_URL = "ws://localhost:8000";
@@ -17,6 +18,7 @@ function WebcamCapture({ song, onFinish }) {
   // ── [추가] 녹화 관련 ref ────────────────────────────────────
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
+  const recordStartTimeRef = useRef(0); // 녹화 시작 시간 기록용
   // ─────────────────────────────────────────────────────────────
 
   const [phase, setPhase] = useState("idle");
@@ -144,12 +146,21 @@ function WebcamCapture({ song, onFinish }) {
     };
 
     mediaRecorder.onstop = () => {
-      const videoBlob = new Blob(recordedChunksRef.current, { type: "video/webm" });
-      console.log("녹화 파일 크기:", videoBlob.size, "bytes");
-      runDtwAnalysis(videoBlob);
+      // 1. 원본 Blob 생성
+      const rawBlob = new Blob(recordedChunksRef.current, { type: "video/webm" });
+      
+      // 2. 실제 녹화된 시간(duration) 계산
+      const duration = Date.now() - recordStartTimeRef.current;
+      
+      // 3. 메타데이터 주입 후 분석 서버로 전송
+      fixWebmDuration(rawBlob, duration, (fixedBlob) => {
+        console.log(`원본 크기: ${rawBlob.size} bytes, 수정된 크기: ${fixedBlob.size} bytes`);
+        runDtwAnalysis(fixedBlob); // 수정된 Blob을 전송!
+      });
     };
 
-    mediaRecorder.start(1000); // 1초마다 데이터 수집
+    mediaRecorder.start(); // 1초마다 데이터 수집
+    recordStartTimeRef.current = Date.now(); // 녹화 시작 시간 저장
     console.log("녹화 시작");
   }, [runDtwAnalysis]);
 
@@ -176,7 +187,7 @@ function WebcamCapture({ song, onFinish }) {
           vid.currentTime = 0;
           vid.play().catch((e) => console.error("영상 재생 실패:", e));
         }
-        startRecording(); // ── [추가] 연습 시작과 동시에 녹화 시작
+        startRecording(); 
       } else {
         setCountdown(count);
       }
@@ -229,14 +240,14 @@ function WebcamCapture({ song, onFinish }) {
   // ── 9. 영상 종료 → 자동 DTW ──────────────────────────────────
   const handleVideoEnded = useCallback(() => {
     if (phase === "practicing") {
-      stopRecording(); // 녹화 종료 → onstop에서 자동으로 DTW 실행
+      stopRecording(); 
     }
   }, [phase, stopRecording]);
 
   // ── 10. 수동 종료 ────────────────────────────────────────────
   const handleManualStop = () => {
     referenceVideoRef.current?.pause();
-    stopRecording(); // 녹화 종료 → onstop에서 자동으로 DTW 실행
+    stopRecording(); 
   };
 
   // ── 헬퍼 ────────────────────────────────────────────────────
