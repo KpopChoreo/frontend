@@ -303,10 +303,10 @@ function WebcamCapture({ song, onFinish }) {
           borderRadius: "12px", border: "1px solid #e9d5ff",
         }}>
           <p style={{ fontSize: "18px", fontWeight: "bold", color: "#7c3aed", margin: "0 0 4px" }}>
-            🔄 종합 분석 중...
+            🪄 종합 분석 중...
           </p>
           <p style={{ color: "#a855f7", fontSize: "13px", margin: 0 }}>
-            영상을 분석하고 있습니다. 잠시만 기다려주세요 (최대 120초)
+            영상을 분석하고 있습니다. 잠시만 기다려주세요.
           </p>
         </div>
       )}
@@ -428,7 +428,6 @@ function WebcamCapture({ song, onFinish }) {
                 display: "flex", flexDirection: "column",
                 alignItems: "center", justifyContent: "center", gap: "16px",
               }}>
-                <span style={{ fontSize: "48px" }}>🔄</span>
                 <p style={{ color: "white", fontSize: "16px", fontWeight: "700", margin: 0 }}>
                   분석 중...
                 </p>
